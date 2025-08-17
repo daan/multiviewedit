@@ -373,7 +373,9 @@ class VideoProcessor(QObject):
                 p = Path(path)
 
                 if export_type == 'video':
-                    output_path = p.with_name(f"{p.stem}_synced{p.suffix}")
+                    output_dir = p.parent / "synced"
+                    output_dir.mkdir(parents=True, exist_ok=True)
+                    output_path = output_dir / p.name
                     print(f"Trimming {path} from frame {trim_start} to {trim_end} -> {output_path}")
                     trim_video(path, output_path, trim_start, trim_end)
                     print(f"Successfully exported {output_path}")
