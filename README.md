@@ -1,4 +1,20 @@
-# multiviewedit
-multi video edit for trimming and syncing multiple videos at the same time.
+# multi view edit
+*multi video edit* for trimming and syncing multiple videos at the same time.
 
-mostly vibe coded and tested with 3 mpjeg videos.
+
+## install
+
+```
+uv add git+https://github.com/daan/multiviewedit
+```
+
+## usage
+
+```
+mve video_paths [video_paths ...]
+```
+
+## about
+
+Made in Umeå with ♥ and mostly vibe coding.
+
