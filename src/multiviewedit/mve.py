@@ -9,6 +9,9 @@ from PySide6.QtGui import QGuiApplication, QImage
 from PySide6.QtQml import QQmlApplicationEngine
 from PySide6.QtMultimedia import QMediaPlayer, QAudioOutput, QMediaMetaData, QVideoSink
 
+from multiviewedit.trim import get_video_info, trim_video, trim_to_sequence
+ 
+
 def handle_player_error(player_id, error, error_string):
     print(f"Player {player_id} Error: {error_string} (Code: {error})")
 
@@ -337,11 +340,11 @@ class VideoProcessor(QObject):
         thread.start()
 
     def _run_export(self, video_paths, frame_offsets, frame_rate, export_type, trim_start_frame, trim_end_frame):
-        try:
-            from trim import get_video_info, trim_video, trim_to_sequence
-        except ImportError:
-            self.exportFinished.emit("Error: Could not import trim module. Make sure trim.py is in the same directory.")
-            return
+        #try:
+        #    from trim import get_video_info, trim_video, trim_to_sequence
+        #except ImportError:
+        #    self.exportFinished.emit("Error: Could not import trim module. Make sure trim.py is in the same directory.")
+        #    return
 
         try:
             # 1. Get video info (especially total frames) for all videos.
