@@ -1,35 +1,16 @@
-import QtQuick
-import QtQuick.Window
-import QtQuick.Controls
-import QtMultimedia
+import QtQuick 2.15
+import QtQuick.Controls 2.15
+import QtQuick.Layouts 1.15
 
 ApplicationWindow {
-    id: root
-    width: 1280 // Increased width for two videos
-    height: 640 // Adjusted height for video, controls, and offset sliders
+    id: window
     visible: true
-    title: qsTr("Multi-Video Player")
+    width: 1280
+    height: 720
+    title: "QML Video Sync"
 
-    property int maxFrameOffset: 60
-    property var frameOffsets: []
     property bool isExporting: false
     property string exportStatus: ""
-
-    Component.onCompleted: {
-        var newOffsets = [];
-        for (var i = 0; i < players.length; i++) {
-            newOffsets.push(0);
-        }
-        frameOffsets = newOffsets;
-
-        if (typeof playbackManager !== 'undefined') {
-            playbackManager.updateFrameOffsets(frameOffsets);
-        }
-    }
-
-    background: Rectangle {
-        color: "black"
-    }
 
     Popup {
         id: exportPopup
@@ -56,162 +37,91 @@ ApplicationWindow {
         }
     }
 
-    Shortcut {
-        sequence: StandardKey.Cancel // StandardKey.Cancel is typically Escape
-        onActivated: Qt.quit()
-    }
+    ColumnLayout {
+        anchors.fill: parent
+        spacing: 5
 
-    Shortcut {
-        sequence: "Space"
-        onActivated: frameExporter.exportAllCurrentFrames(players, videoPaths, playbackManager.currentFrame, frameOffsets)
-    }
-
-    Connections {
-        target: videoProcessor
-        function onExportStarted() {
-            isExporting = true;
-            exportStatus = "Exporting videos, please wait...";
-            exportPopup.open();
+        focus: true
+        Keys.onPressed: (event) => {
+            if (event.key === Qt.Key_Escape) {
+                Qt.quit()
+            } else if (event.key === Qt.Key_Space) {
+                controller.togglePlayPause()
+            }
         }
-        function onExportFinished(message) {
-            isExporting = false;
-            exportStatus = message;
-            // Popup remains open to show the final status
-        }
-    }
 
+        RowLayout {
+            id: videoRow
+            Layout.fillWidth: true
+            Layout.fillHeight: true
 
-    Row {
-        id: videoRow
-        anchors.top: parent.top
-        anchors.left: parent.left
-        anchors.right: parent.right
-        anchors.bottom: controlsRect.top // Anchor to the top of the controls area
-        spacing: 0 // No space between videos
+            Repeater {
+                id: videoRepeater
+                model: controller.videoCount
 
-        Repeater {
-            model: players.length
-            delegate: Column {
-                width: videoRow.width / players.length
-                height: videoRow.height
-                spacing: 5
+                delegate: ColumnLayout {
+                    property int imageId: 0
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
 
-                property int totalFrames: videoInfoProvider.frameRate > 0 ? Math.round((players[index].duration / 1000.0) * videoInfoProvider.frameRate) : 0
-                property int currentFrame: playbackManager.currentFrame + frameOffsets[index]
-                property bool isOutOfBounds: index > 0 && (currentFrame < 0 || (totalFrames > 0 && currentFrame >= totalFrames))
-
-                Item {
-                    width: parent.width
-                    height: parent.height - 80 // Allocate space for controls below
-
-                    Text {
-                        anchors.top: parent.top
-                        anchors.left: parent.left
-                        anchors.margins: 10
-                        color: "white"
-                        font.pixelSize: 16
-                        text: qsTr("Frame: %1 / %2").arg(currentFrame).arg(totalFrames)
+                    Image {
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
+                        source: "image://videosource/" + index + "?" + parent.imageId
+                        fillMode: Image.PreserveAspectFit
                     }
 
-                    VideoOutput {
-                        id: videoOutputItem
-                        anchors.fill: parent
-                        visible: !isOutOfBounds
-
-                        Component.onCompleted: {
-                            if (players.length > index) {
-                                players[index].videoOutput = videoOutputItem
-                            }
-                        }
+                    Label {
+                        text: "Offset: " + (controller.frameOffsets.length > index ? controller.frameOffsets[index] : 0) + " frames"
+                        Layout.alignment: Qt.AlignHCenter
                     }
 
-                    Rectangle {
-                        anchors.fill: parent
-                        color: "black"
-                        visible: isOutOfBounds
-                    }
-
-                    MouseArea {
-                        anchors.fill: parent
-                        acceptedButtons: Qt.LeftButton
-                        onClicked: {
-                            if (players.length > index) {
-                                console.log("Video " + (index + 1) + " clicked. Attempting to export frame for: " + videoPaths[index])
-                                frameExporter.exportCurrentFrame(players[index], videoPaths[index])
-                            }
-                        }
-                    }
-                }
-
-                Text {
-                    width: parent.width
-                    horizontalAlignment: Text.AlignHCenter
-                    color: "white"
-                    text: qsTr("Offset: %1 frames").arg(frameOffsets[index])
-                }
-
-                Slider {
-                    width: parent.width
-                    from: -maxFrameOffset
-                    to: maxFrameOffset
-                    stepSize: 1
-                    value: frameOffsets[index]
-                    enabled: index > 0
-
-                    onMoved: {
-                        var newOffsets = frameOffsets.slice();
-                        newOffsets[index] = value;
-                        frameOffsets = newOffsets;
-
-                        if (typeof playbackManager !== 'undefined') {
-                            playbackManager.updateFrameOffsets(frameOffsets);
-                        }
+                    Slider {
+                        Layout.fillWidth: true
+                        from: -60
+                        to: 60
+                        value: (controller.frameOffsets.length > index ? controller.frameOffsets[index] : 0)
+                        enabled: index > 0 && controller.videosLoaded
+                        onMoved: controller.setFrameOffset(index, value)
                     }
                 }
             }
         }
-    }
 
-    Rectangle {
-        id: controlsRect // Added id for anchoring
-        anchors.bottom: parent.bottom
-        width: parent.width
-        height: 80
-        color: "black"
+        RowLayout {
+            Layout.fillWidth: true
+            Layout.leftMargin: 5
+            Layout.rightMargin: 5
 
-        Slider {
-            id: progressSlider
-            anchors.left: parent.left
-            anchors.right: parent.right
-            anchors.top: parent.top
-            anchors.leftMargin: 5
-            anchors.rightMargin: 5
-            anchors.topMargin: 2
-            height: 25
+            Slider {
+                id: timelineSlider
+                Layout.fillWidth: true
+                from: 0
+                to: controller.totalFrames > 0 ? controller.totalFrames - 1 : 0
+                value: controller.currentFrame
+                enabled: controller.videosLoaded
 
-            from: 0
-            value: playbackManager.currentFrame
-            to: playbackManager.totalFrames
-            enabled: players.length > 0 && playbackManager.totalFrames > 0
-
-            onMoved: {
-                playbackManager.seek(value)
+                onMoved: {
+                    controller.currentFrame = value
+                }
+                onValueChanged: {
+                    if (!pressed) {
+                        controller.currentFrame = value
+                    }
+                }
             }
-        }
 
+        }
+        
         RangeSlider {
             id: trimSlider
-            anchors.top: progressSlider.bottom
-            anchors.left: parent.left
-            anchors.right: parent.right
-            anchors.leftMargin: 5
-            anchors.rightMargin: 5
-            anchors.topMargin: 2
-            height: 25
-            enabled: players.length > 0 && playbackManager.totalFrames > 0
+            Layout.fillWidth: true
+            Layout.leftMargin: 5
+            Layout.rightMargin: 5
+            enabled: controller.videosLoaded
 
             from: 0
-            to: playbackManager.totalFrames
+            to: controller.totalFrames > 0 ? controller.totalFrames - 1 : 0
             first.value: 0
             second.value: to
 
@@ -221,72 +131,59 @@ ApplicationWindow {
                     second.value = to;
                 }
             }
-
         }
-
-        Connections {
-            target: trimSlider.first
-            function onMoved() {
-                if (playbackManager.currentFrame < trimSlider.first.value) {
-                    playbackManager.seek(trimSlider.first.value);
-                }
-            }
-        }
-
-        Connections {
-            target: trimSlider.second
-            function onMoved() {
-                if (playbackManager.currentFrame > trimSlider.second.value) {
-                    playbackManager.seek(trimSlider.second.value);
-                }
-            }
-        }
-
-        Row {
-            anchors.top: trimSlider.bottom
-            anchors.bottom: parent.bottom
-            anchors.horizontalCenter: parent.horizontalCenter
+        
+        RowLayout {
+            Layout.alignment: Qt.AlignHCenter
             spacing: 10
-            anchors.topMargin: 3
-            anchors.bottomMargin: 2
 
             Button {
-                id: playPauseButton
-                text: (typeof playbackManager !== 'undefined' && playbackManager.isPlaying) ? qsTr("Pause") : qsTr("Play")
-                enabled: players.length > 0 && !isExporting && (typeof playbackManager !== 'undefined' && playbackManager.totalFrames > 0)
-
-                onClicked: {
-                    if (typeof playbackManager !== 'undefined') {
-                        playbackManager.togglePlayPause()
-                    }
-                }
+                text: controller.isPlaying ? "Pause" : "Play"
+                enabled: controller.videosLoaded && !isExporting
+                onClicked: controller.togglePlayPause()
             }
-
+            
             Button {
-                id: saveButton
-                text: qsTr("Save Synced")
-                enabled: !isExporting && videoInfoProvider.frameRate > 0 && players.length > 0
-                ToolTip.text: enabled ? "" : (players.length === 0 ? "No videos loaded" : (videoInfoProvider.frameRate <= 0 ? "Frame rate not available" : "Export in progress"))
-                ToolTip.visible: saveButton.hovered && !saveButton.enabled
-
+                text: "Save Synced"
+                enabled: controller.videosLoaded && !isExporting
                 onClicked: {
-                    console.log("Save Synced clicked.")
-                    videoProcessor.exportSyncedVideos(videoPaths, frameOffsets, videoInfoProvider.frameRate, trimSlider.first.value, trimSlider.second.value)
+                    videoProcessor.exportSyncedVideos(videoPaths, controller.frameOffsets, trimSlider.first.value, trimSlider.second.value)
                 }
             }
-
+            
             Button {
-                id: saveSequenceButton
-                text: qsTr("Save Synced Sequence")
-                enabled: !isExporting && videoInfoProvider.frameRate > 0 && players.length > 0
-                ToolTip.text: enabled ? "" : (players.length === 0 ? "No videos loaded" : (videoInfoProvider.frameRate <= 0 ? "Frame rate not available" : "Export in progress"))
-                ToolTip.visible: saveSequenceButton.hovered && !saveSequenceButton.enabled
-
+                text: "Save Synced Sequence"
+                enabled: controller.videosLoaded && !isExporting
                 onClicked: {
-                    console.log("Save Synced Sequence clicked.")
-                    videoProcessor.exportSyncedImageSequence(videoPaths, frameOffsets, videoInfoProvider.frameRate, trimSlider.first.value, trimSlider.second.value)
+                    videoProcessor.exportSyncedImageSequence(videoPaths, controller.frameOffsets, trimSlider.first.value, trimSlider.second.value)
                 }
             }
+        }
+    }
+
+    Connections {
+        target: imageProvider
+        function onImageUpdated(index) {
+            if (videoRepeater.count > index) {
+                var item = videoRepeater.itemAt(index)
+                if (item) {
+                    item.imageId = Date.now()
+                }
+            }
+        }
+    }
+
+    Connections {
+        target: videoProcessor
+        function onExportStarted() {
+            isExporting = true
+            exportStatus = "Exporting videos, please wait..."
+            exportPopup.open()
+        }
+        function onExportFinished(message) {
+            isExporting = false
+            exportStatus = message
+            // Popup remains open to show the final status
         }
     }
 }
